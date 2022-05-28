@@ -71,6 +71,7 @@
                             }
                         }, 0);
                     }
+                    
                     if (this.status === REJECTED) {
                         // 因为把promise2当做参数传给resolvePromise的时候，promise2实例还没实例化完成，所以需要异步
                         setTimeout(() => {
