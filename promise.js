@@ -7,3 +7,4 @@ promsie2.then((value) => {
 }, reason => {
     console.log(reason)
 })
+
