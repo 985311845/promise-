@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <script>
+        const PENDING = 'pending', FULFILLED = 'fulfilleed', REJECT = 'rejected';
+        class myPromise {
+            constructor(executor) {
+                // 期约初始化后，默认状态为pending状态
+                this.status = PENDING;
+                // 保兑现后的值
+                this.value = null;
+                // 保存拒绝后的理由
+                this.reason = null;
+                // 当期约中的执行器的函数体为异步任务时候，需要先把then方法中的回调函数保存再一个数组中等待resolve或者reject之后再执行
+                this.resolveEventArr = [];
+                this.rejectedEventArr = [];
+                //期约实例化后会立即执行一个“执行器函数”，执行器函数通过resolve方法或者reject方法来改变期约的状态
+                // resolve接受一个兑现的参数
+                const resolve = (value) => {
+                    // 因为期约的状态只能改变一次，所以需要判断期约的状态是否为pending状态
+                    if (this.status = PENDING) {
+                        this.status = FULFILLED;
+                        this.value = value;
+                        // 当在异步任务中触发resolve时候，再调用then中的回调
+                        this.resolveEventArr.forEach(fn => {
+                            fn();
+                        })
+                    }
+                };
+                // reject接受一个拒绝的理由
+                const reject = (reason) => {
+                    if (this.status = PENDING) {
+                        this.status = REJECTED;
+                        this.reason = reason;
+                        // 当在异步任务中触发rejected时候再调用then中的回调
+                        this.rejectedEventArr.forEach(fn => {
+                            fn();
+                        })
+                    }
+                }
+                // 执行器函数可能会抛出错误，需要用try-catch捕获错误
+                try {
+                    executor(resolve, reject);
+                } catch (e) {
+                    throw new Error(e);
+                }
+            };
+            then(onFulfilled, onRejected) {
+                onFulfilled = typeof onFulfilled === 'function' ? onFulfilled : value => value;
+                onRejected = typeof onRejected === 'function' ? onRejected : reason => { throw reason };
+                // then方法返回一个新的期约对象
+                let promise2 = new myPromise((resolve, reject) => {
+                    if (this.status === FULFILLED) {
+                        setTimeout(() => {
+                            // then中的回调函数中如果抛出了异常，需要用try-catch来捕获异常
+                            try {
+                                // 当then中的回调函数返回的是一个期约对象的时候，需要对期约对象做幂等操作
+                                let x = onFulfilled(this.value);
+                                // 调用处理函数，处理then中回调函数的返回结果
+                                resolvePromise(promise2, x, resolve, reject);
+                            } catch (e) {
+                                throw new Error(e);
+                            }
+                        }, 0);
+                    }
+                    if (this.status === REJECTED) {
+                        // 因为把promise2当做参数传给resolvePromise的时候，promise2实例还没实例化完成，所以需要异步
+                        setTimeout(() => {
+                            // then中的回调函数中如果抛出了异常，需要用try-catch来捕获异常
+                            try {
+                                let x = onRejected(this.reason)
+                                resolvePromise(promise2, x, resolve, reject);
+                            } catch (e) {
+                                throw new Error(e);
+                            }
+                        }, 0);
+                    }
+                    if (this.status === PENDING) {
+                        this.resolveEventArr.push(() => {
+                            setTimeout(() => {
+                                // then中的回调函数中如果抛出了异常，需要用try-catch来捕获异常
+                                try {
+                                    let x = onFulfilled(this.value);
+                                    resolvePromise(promise2, x, resolve, reject);
+                                } catch (e) {
+                                    throw new Error(e);
+                                }
+                            }, 0);
+
+                        });
+                        this.rejectedEventArr.push(() => {
+                            setTimeout(() => {
+                                // then中的回调函数中如果抛出了异常，需要用try-catch来捕获异常
+                                try {
+                                    let x = onRejected(this.reason);
+                                    resolvePromise(promise2, x, resolve, reject);
+                                } catch (e) {
+                                    throw new Error(e);
+                                }
+                            }, 0);
+
+                        })
+                    }
+                });
+                return promise2;
+            }
+        };
+        // 定义resolvePromise函数来处理then中回调函数的返回值
+        function resolvePromise(promise2, x, resolve, reject) {
+            if (promise2 === x) {
+                return new TypeError('Chaining cycle detected for promise #<Promise>')
+            };
+            if ((typeof x === 'object' && x !== null) || typeof x === 'function') {
+                // promise状态只能改变一次，就是调用了resolve后，后面的reject会静默失败，用一个开关来控制
+                let called = false;
+                // 当你读取x.then的时候，可能x中的then设置了访问器属性，当你读取的时候，抛出一个异常，所以我们需要用try-catch捕获
+
+                try {
+                    let then = x.then;
+                    if (typeof then === 'function') {// 此时认定x就是一个Promise2就是一个promise
+                        // 为什么要用call，因为外层的promise状态是有内层的promise的状态来决定的，小红书328页：幂等性会保留传入期约的状态
+                        then.call(x, (y) => {
+                            if (called) return;
+                            called = true;
+                            resolvePromise(promise2, y, resolve, reject)
+                        }, (r) => {
+                            if (called) return;
+                            called = true;
+                            reject(r)
+                        })
+                    } else {
+                        resolve(x);
+                    }
+                } catch (e) {
+                    if (called) return;
+                    called = true;
+                    reject(e)
+                }
+
+            } else {
+                resolve(x)
+            }
+        }
+    </script>
+</body>
+
+</html>
